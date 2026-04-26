@@ -9,3 +9,9 @@ bk/
 session*.txt
 .env.*
 !README.md
+# scripts locais nao versionar
+analisa_e_sobe_github_telegram*.bat
+verificador_total_projeto.bat
+EXECUTAR_VERIFICADOR_SEM_FECHAR.bat
+LEIA_ME_VERIFICADOR_V2.txt
+verificacao_github_telegram.log
