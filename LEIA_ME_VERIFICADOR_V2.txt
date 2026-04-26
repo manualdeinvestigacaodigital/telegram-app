@@ -1,0 +1,18 @@
+INSTRUÇÕES - V2
+
+Arquivos:
+1. analisa_e_sobe_github_telegram_v2.bat
+2. EXECUTAR_VERIFICADOR_SEM_FECHAR.bat
+
+Uso recomendado:
+- Copie os dois arquivos para a raiz do projeto.
+- Dê duplo clique em EXECUTAR_VERIFICADOR_SEM_FECHAR.bat.
+
+Correções desta versão:
+- a janela não fecha automaticamente;
+- grava log em verificacao_github_telegram.log;
+- bloqueia push se houver conflito de merge;
+- valida sintaxe dos arquivos principais;
+- bloqueia .env, session.txt, .telegram_chats_cache, public/cache e node_modules;
+- se não houver alterações, não tenta commit desnecessário;
+- se der erro, pausa e mostra mensagem.
