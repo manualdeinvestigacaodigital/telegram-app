@@ -1,0 +1,11 @@
+node_modules/
+.env
+session.txt
+public/cache/
+bk/
+*.log
+.telegram_chats_cache.json
+.telegram_chats_cache*.json
+session*.txt
+.env.*
+!README.md

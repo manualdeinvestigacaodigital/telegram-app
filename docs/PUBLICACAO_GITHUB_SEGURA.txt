@@ -1,0 +1,16 @@
+PUBLICAÇÃO SEGURA — TELEGRAM APP
+
+Arquivos incluídos neste pacote: código-fonte, README, package.json/package-lock, .gitignore e teste.
+
+Arquivos propositalmente NÃO incluídos:
+- .env
+- session.txt
+- .telegram_chats_cache.json
+- public/cache/
+- node_modules/
+
+Motivo: .env contém API_ID/API_HASH; session.txt contém sessão autenticada; .telegram_chats_cache.json contém cache local de chats; public/cache contém mídias/avatares locais.
+
+Teste recomendado após substituir:
+node tests/validate_api_prompt_env.mjs
+npm start
