@@ -201,31 +201,75 @@ const query=$('globalEntityQuery').value.trim();
 if(!query)throw new Error('Informe o termo para busca de entidades.');
 const limit=Math.max(1,Number($('globalEntityLimit').value||20)||20);
 const entityTypes=getSelectedValues('globalEntityTypes').join(',');
-clearResultState();state.items=[];state.meta={operation:'global_entities',generatedAt:new Date().toISOString(),sourceChatTitle:'busca global de entidades',sourceKind:'global_entities'};
+clearResultState();
+state.items=[];
+state.meta={operation:'global_entities',generatedAt:new Date().toISOString(),sourceChatTitle:'busca global de entidades',sourceKind:'global_entities',query};
 renderMeta(state.items,state.meta);
 resetProgress('Preparando busca global validada...');
-let globalProgressPct=3;
-let maxGlobalProcessed=0;
-let lastGlobalStatusText='';
-let lastGlobalStatusTs=0;
+let globalProgressPct=4;
+let lastRendered=0;
+let expectedTotal=limit;
+let lastRenderTs=0;
+let lastStatusTs=0;
+
 const setGlobalProgress=(title,pct)=>{
-  globalProgressPct=Math.max(globalProgressPct,Math.max(0,Math.min(100,Number(pct)||0)));
+  const safePct=Math.max(0,Math.min(100,Number(pct)||0));
+  globalProgressPct=Math.max(globalProgressPct,safePct);
   setProgress(title,globalProgressPct);
 };
-const setGlobalStatusStable=(processed,total,force=false)=>{
-  maxGlobalProcessed=Math.max(maxGlobalProcessed,Number(processed||0)||0);
+const renderPartial=(force=false)=>{
   const now=Date.now();
-  const text=`Buscando entidades globais... ${maxGlobalProcessed}/${total}`;
-  if(force||text!==lastGlobalStatusText||now-lastGlobalStatusTs>500){
-    lastGlobalStatusText=text;
-    lastGlobalStatusTs=now;
-    setStatus(text);
+  if(force||state.items.length<=15||state.items.length-lastRendered>=4||now-lastRenderTs>350){
+    renderEntities({items:[...state.items],meta:{...state.meta,total:state.items.length}});
+    lastRendered=state.items.length;
+    lastRenderTs=now;
   }
 };
-setGlobalProgress('Preparando busca global validada...',3);setStatus('Preparando busca global validada...');
-let lastRendered=0;let expectedTotal=limit;let lastRenderTs=0;
+const setGlobalStatusStable=(force=false)=>{
+  const now=Date.now();
+  if(force||now-lastStatusTs>450){
+    lastStatusTs=now;
+    setStatus(`Buscando entidades globais... encontrados ${state.items.length}/${expectedTotal}`);
+  }
+};
+
+setGlobalProgress('Preparando busca global validada...',4);
+setStatus('Preparando busca global validada...');
 try{
- await streamNdjson(`/auth/global/entities/stream?${qs({query,limit,entityTypes})}`, {token,onStart:(ev)=>{if(!isActiveToken(token))return;expectedTotal=Math.max(1,Number(ev.total||0)||limit);state.meta={...state.meta,query};renderMeta(state.items,state.meta);},onItem:(ev)=>{if(!isActiveToken(token))return;state.items.push(normalizePublicEntityRow(ev.item));const now=Date.now();const shouldRender=state.items.length<=12||state.items.length-lastRendered>=5||now-lastRenderTs>450;if(shouldRender){renderEntities({items:[...state.items],meta:state.meta});lastRendered=state.items.length;lastRenderTs=now;}const pctByItems=Math.min(96,Math.round((state.items.length/Math.max(expectedTotal,1))*100));setGlobalProgress(`Buscando entidades globais... ${Math.max(maxGlobalProcessed,state.items.length)}/${expectedTotal}`,pctByItems);setGlobalStatusStable(state.items.length,expectedTotal);},onProgress:(ev)=>{if(!isActiveToken(token))return;expectedTotal=Math.max(expectedTotal,Number(ev.total||0)||0,limit);const processed=Math.max(maxGlobalProcessed,state.items.length,Number(ev.processed||0)||0);const pctFromApi=Number(ev.percent||0)||0;const pctByProcessed=Math.round((processed/Math.max(expectedTotal,1))*100);setGlobalProgress(`Buscando entidades globais... ${processed}/${expectedTotal}`,Math.min(96,Math.max(pctFromApi,pctByProcessed)));setGlobalStatusStable(processed,expectedTotal);},onEnd:(ev)=>{if(!isActiveToken(token))return;const payload={items:(ev.items||state.items).map(normalizePublicEntityRow),meta:ev.meta||state.meta};renderEntities(payload);finishProgress('Busca global validada concluída');setStatus(`Busca global validada concluída. ${payload.items.length} item(ns).`,'success');}});
+ await streamNdjson(`/auth/global/entities/stream?${qs({query,limit,entityTypes})}`, {
+  token,
+  onStart:(ev)=>{
+    if(!isActiveToken(token))return;
+    expectedTotal=Math.max(1,Number(ev.total||0)||limit);
+    state.meta={...state.meta,query};
+    renderMeta(state.items,state.meta);
+    setGlobalStatusStable(true);
+  },
+  onItem:(ev)=>{
+    if(!isActiveToken(token))return;
+    state.items.push(normalizePublicEntityRow(ev.item));
+    const pctByItems=Math.min(97,Math.max(6,Math.round((state.items.length/Math.max(expectedTotal,1))*97)));
+    setGlobalProgress(`Buscando entidades globais... ${state.items.length}/${expectedTotal}`,pctByItems);
+    renderPartial(false);
+    setGlobalStatusStable(false);
+  },
+  onProgress:(ev)=>{
+    if(!isActiveToken(token))return;
+    expectedTotal=Math.max(expectedTotal,Number(ev.total||0)||0,limit);
+    const phasePct=Math.min(94,Math.max(6,Number(ev.percent||0)||0));
+    const itemPct=Math.min(97,Math.round((state.items.length/Math.max(expectedTotal,1))*97));
+    setGlobalProgress(`Buscando entidades globais... ${state.items.length}/${expectedTotal}`,Math.max(itemPct,phasePct));
+    renderPartial(false);
+    setGlobalStatusStable(false);
+  },
+  onEnd:(ev)=>{
+    if(!isActiveToken(token))return;
+    const payload={items:(ev.items||state.items).map(normalizePublicEntityRow),meta:ev.meta||state.meta};
+    renderEntities(payload);
+    finishProgress('Busca global validada concluída');
+    setStatus(`Busca global validada concluída. ${payload.items.length} item(ns).`,'success');
+  }
+ });
 }catch(error){
  if(error&&error.name==='AbortError')return;
  if(!isActiveToken(token))return;

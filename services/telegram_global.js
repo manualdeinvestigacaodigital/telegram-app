@@ -103,16 +103,64 @@ function uniqTerms(items = []) {
 
 // PATCH GLOBAL ENTITIES — amplia a busca pública sem travar.
 // Corrige gargalo de consultas literais: acento, singular/plural e termos correlatos.
+function buildGenericEntityExpansion(original = "") {
+  const base = String(original || "").trim();
+  const normalized = normalizeSearchTerm(base);
+  const noSpace = normalized.replace(/\s+/g, "");
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  const main = tokens[0] || normalized;
+  const terms = [base, normalized, noSpace, main];
+  const add = (...items) => terms.push(...items);
+
+  if (main.length >= 4) {
+    add(
+      `${main}s`, `${main}es`, `${main}br`, `${main} brasil`, `${main} brazil`,
+      `${main} oficial`, `${main} canal`, `${main} canais`, `${main} grupo`, `${main} grupos`,
+      `${main} notícias`, `${main} noticias`, `${main} news`, `${main} live`, `${main} tv`,
+      `${main} 24h`, `${main} online`, `${main} comunidade`, `${main} forum`, `${main} fórum`
+    );
+  }
+
+  if (normalized.length >= 5) {
+    add(normalized.slice(0, -1), normalized.slice(0, 5), normalized.slice(0, 6), normalized.slice(0, 7));
+  }
+
+  for (const t of tokens) {
+    if (t.length >= 4) {
+      add(t, `${t}s`, `${t}es`, `${t} brasil`, `${t} canal`, `${t} grupo`, `${t} news`);
+    }
+  }
+
+  return terms;
+}
+
+// PATCH GLOBAL ENTITIES V6 — varredura adaptativa genérica.
+// Mantém os dicionários especializados já estáveis, mas acrescenta expansão para qualquer termo.
+// Objetivo: respeitar melhor a quantidade escolhida pelo usuário sem depender apenas da consulta literal.
 function buildGlobalEntityQueries(query = "", requestedLimit = 20) {
   const original = String(query || "").trim();
   const normalized = normalizeSearchTerm(original);
-  const terms = [original, normalized];
-
-  if (normalized.endsWith("s") && normalized.length > 3) terms.push(normalized.slice(0, -1));
-
+  const terms = [];
   const add = (...items) => terms.push(...items);
 
+  add(...buildGenericEntityExpansion(original));
 
+  if (normalized.endsWith("s") && normalized.length > 3) add(normalized.slice(0, -1));
+
+  if (/bomb|bomba|explos|dinamit|granad|artefato|deton/.test(normalized)) {
+    add(
+      "bomba", "bombas", "bomba brasil", "bomba canal", "bomba grupo", "bomba news", "bomba notícias", "bomba noticias",
+      "bomb", "bombs", "bomber", "bombing", "explosion", "explosive", "explosives",
+      "explosão", "explosao", "explosões", "explosoes", "explosivo", "explosivos",
+      "artefato explosivo", "artefatos explosivos", "detonação", "detonacao", "detonador", "detonadores",
+      "dinamite", "grenade", "granada", "granadas", "pirotecnia", "fogos", "fogos de artificio", "fogos de artifício",
+      "bombeiro", "bombeiros", "corpo de bombeiros", "bombeiros brasil", "resgate", "emergência", "emergencia",
+      "bomba d'agua", "bomba dagua", "bomba de água", "bomba de agua", "bomba combustivel", "bomba combustível",
+      "bomba hidráulica", "bomba hidraulica", "bomba automotiva", "bomba posto", "posto de gasolina",
+      "bomba atomica", "bomba atômica", "bomba nuclear", "bomba relógio", "bomba relogio",
+      "ofertas bomba", "promoção bomba", "promocao bomba", "aposta bomba", "bombando", "achadinho bombando"
+    );
+  }
 
   if (/polic|policiais|policial|seguranc|seguranç|delegac|deic|pm|prf|pc|civil|militar|guarda|gcm|investig|crime|criminal|osint|law|enforcement|sheriff|carabiner|guardia/.test(normalized)) {
     add(
@@ -184,7 +232,11 @@ function buildGlobalEntityQueries(query = "", requestedLimit = 20) {
     );
   }
 
-  const cap = Math.max(80, Math.min(220, Number(requestedLimit || 20) >= 300 ? 200 : Number(requestedLimit || 20) >= 200 ? 170 : Number(requestedLimit || 20) >= 100 ? 130 : 90));
+  const wanted = Math.max(1, Number(requestedLimit || 20) || 20);
+  const cap = Math.max(
+    140,
+    Math.min(360, wanted >= 400 ? 340 : wanted >= 300 ? 300 : wanted >= 200 ? 260 : wanted >= 100 ? 210 : 160)
+  );
   return uniqTerms(terms).slice(0, cap);
 }
 
@@ -318,7 +370,7 @@ export async function searchGlobalEntities(query = "", entityTypes = [], limit =
   const client = await startTelegram();
   const selected = normalizeSet(entityTypes);
   const wanted = Math.max(Number(limit || 20), 1);
-  const expandedLimit = Math.max(wanted * 55, 1200);
+  const expandedLimit = Math.max(wanted * 80, 1800);
   const queryVariants = buildGlobalEntityQueries(q, wanted);
   const diagnostics = {
     requestedLimit: wanted,
@@ -327,7 +379,7 @@ export async function searchGlobalEntities(query = "", entityTypes = [], limit =
     globalCandidates: 0,
     returnedTotal: 0,
     shortfall: 0,
-    note: "A busca global V5 usa varredura adaptativa pelo limite escolhido pelo usuário, com dicionário ampliado por domínio e progresso monotônico. O total final ainda depende das entidades públicas efetivamente retornadas pela API/MTProto do Telegram."
+    note: "A busca global V6 usa varredura adaptativa genérica e por domínio, orientada pelo limite escolhido pelo usuário, com progresso monotônico e emissão parcial. O total final ainda depende das entidades públicas efetivamente retornadas pela API/MTProto do Telegram."
   };
 
   const { ownedIds, ownedUsernames, ownedTitles } = await buildOwnedSets();
@@ -426,7 +478,7 @@ export async function searchGlobalEntitiesStream(query = "", entityTypes = [], l
   const client = await startTelegram();
   const selected = normalizeSet(entityTypes);
   const wanted = Math.max(Number(limit || 20), 1);
-  const expandedLimit = Math.max(wanted * 55, 1200);
+  const expandedLimit = Math.max(wanted * 80, 1800);
   const queryVariants = buildGlobalEntityQueries(q, wanted);
 
   onEvent?.({ type: "start", query: q, total: wanted });
@@ -443,7 +495,7 @@ export async function searchGlobalEntitiesStream(query = "", entityTypes = [], l
     globalEntityCandidates: 0,
     emittedPublicUsernameEntities: 0,
     shortfall: 0,
-    note: "A busca global V5 usa varredura adaptativa pelo limite escolhido pelo usuário, com dicionário ampliado por domínio e progresso monotônico. O total final ainda depende das entidades públicas efetivamente retornadas pela API/MTProto do Telegram."
+    note: "A busca global V6 usa varredura adaptativa genérica e por domínio, orientada pelo limite escolhido pelo usuário, com progresso monotônico e emissão parcial. O total final ainda depende das entidades públicas efetivamente retornadas pela API/MTProto do Telegram."
   };
 
   let maxPercent = 0;
@@ -480,7 +532,7 @@ export async function searchGlobalEntitiesStream(query = "", entityTypes = [], l
   }
 
   if (emitted.length < wanted) {
-    const maxGlobalPagesPerTerm = wanted >= 300 ? 12 : wanted >= 200 ? 11 : wanted >= 100 ? 9 : 7;
+    const maxGlobalPagesPerTerm = wanted >= 400 ? 22 : wanted >= 300 ? 20 : wanted >= 200 ? 18 : wanted >= 100 ? 14 : 10;
     for (let termIndex = 0; termIndex < queryVariants.length && emitted.length < wanted; termIndex += 1) {
       const term = queryVariants[termIndex];
       let offsetRate = 0;
