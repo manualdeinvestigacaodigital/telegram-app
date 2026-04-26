@@ -77,6 +77,131 @@ function normalizeOwnedTitle(value) {
     .toLowerCase();
 }
 
+
+function normalizeSearchTerm(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function uniqTerms(items = []) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    const term = String(item || "").replace(/\s+/g, " ").trim();
+    if (!term) continue;
+    const key = normalizeSearchTerm(term);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(term);
+  }
+  return out;
+}
+
+// PATCH GLOBAL ENTITIES — amplia a busca pública sem travar.
+// Corrige gargalo de consultas literais: acento, singular/plural e termos correlatos.
+function buildGlobalEntityQueries(query = "", requestedLimit = 20) {
+  const original = String(query || "").trim();
+  const normalized = normalizeSearchTerm(original);
+  const terms = [original, normalized];
+
+  if (normalized.endsWith("s") && normalized.length > 3) terms.push(normalized.slice(0, -1));
+
+  const add = (...items) => terms.push(...items);
+
+
+
+  if (/polic|policiais|policial|seguranc|seguranç|delegac|deic|pm|prf|pc|civil|militar|guarda|gcm|investig|crime|criminal|osint|law|enforcement|sheriff|carabiner|guardia/.test(normalized)) {
+    add(
+      "polícia", "policia", "policial", "policiais", "polícias", "policias",
+      "polícia civil", "policia civil", "polícia militar", "policia militar",
+      "polícia federal", "policia federal", "pf", "pm", "pc", "prf",
+      "polícia rodoviária", "policia rodoviaria", "polícia rodoviária federal", "policia rodoviaria federal",
+      "polícia penal", "policia penal", "polícia científica", "policia cientifica",
+      "polícia judiciária", "policia judiciaria", "polícia investigativa", "policia investigativa",
+      "polícia ostensiva", "policia ostensiva", "força policial", "forca policial",
+      "polícia local", "policia local", "polícia nacional", "policia nacional",
+      "polícia municipal", "policia municipal", "polícia comunitária", "policia comunitaria",
+      "policía", "policia nacional", "policia local", "policias",
+      "police", "police channel", "police news", "police department", "law enforcement",
+      "sheriff", "state police", "federal police", "civil police", "military police", "cop", "cops",
+      "delegacia", "delegacias", "delegado", "delegados", "delegada", "delegadas",
+      "investigação policial", "investigacao policial", "investigações policiais", "investigacoes policiais",
+      "investigação criminal", "investigacao criminal", "investigador", "investigadores",
+      "crime", "crimes", "criminal", "criminalidade", "criminologia",
+      "segurança pública", "seguranca publica", "segurança", "seguranca",
+      "notícias policiais", "noticias policiais", "jornalismo policial", "ocorrência policial", "ocorrencia policial",
+      "plantão policial", "plantao policial", "caso policial", "casos policiais",
+      "ação policial", "acao policial", "operações policiais", "operacoes policiais", "operação policial", "operacao policial",
+      "prisão", "prisao", "prisões", "prisoes", "flagrante", "investigação", "investigacao",
+      "perícia", "pericia", "perícia criminal", "pericia criminal", "cadeia de custódia", "cadeia de custodia",
+      "inteligência policial", "inteligencia policial", "osint policial", "cybercrime", "cibercrime",
+      "deic", "dhpp", "denarc", "dise", "dig", "dic", "dope", "detran",
+      "rota", "bope", "coe", "gate", "baep", "força tática", "forca tatica",
+      "gcm", "guarda civil", "guarda municipal", "guarda civil municipal",
+      "carabinieri", "guardia civil", "gendarmerie", "interpol", "europol",
+      "concursos policiais", "concurso policial", "concurso polícia", "concurso policia",
+      "polícia concurso", "policia concurso", "polícia federal concurso", "policia federal concurso",
+      "polícia civil concurso", "policia civil concurso", "polícia militar concurso", "policia militar concurso"
+    );
+  }
+
+  if (/caminh|camin|carret|truck|frete|transport|logistic|carga|rodovi|diesel|scania|volvo|mercedes|iveco|daf|man/.test(normalized)) {
+    add(
+      "caminhão", "caminhao", "caminhões", "caminhoes", "caminhoneiro", "caminhoneiros",
+      "caminhoneira", "caminhoneiras", "camin", "caminho", "camion", "camiones", "camionista",
+      "carreta", "carretas", "carreteiro", "carreteiros", "truck", "trucks", "trucker", "truckers",
+      "lorry", "lorry driver", "semi truck", "tractor truck",
+      "frete", "fretes", "freteiro", "freteiros", "carga", "cargas", "cargas brasil",
+      "carga pesada", "cargas pesadas", "transporte", "transportes", "transportadora", "transportadoras",
+      "transporte rodoviário", "transporte rodoviario", "transporte de cargas", "logística", "logistica",
+      "logística transporte", "logistica transporte", "frota", "frotas", "agregados", "agregado caminhão",
+      "agregado caminhao", "agregamos caminhões", "agregamos caminhoes", "central de cargas", "fretes brasil",
+      "fretes sp", "fretes brasil caminhão", "fretes brasil caminhao", "fretes e cargas",
+      "rodoviário", "rodoviario", "rodovia", "estrada", "bitrem", "rodotrem", "baú caminhão", "bau caminhao",
+      "baú", "bau", "sider", "graneleiro", "prancha", "munck", "guincho", "cegonha", "basculante",
+      "caçamba", "cacamba", "implementos rodoviários", "implementos rodoviarios", "reboque", "semirreboque",
+      "semi reboque", "carroceria", "carrocerias", "utilitários", "utilitarios", "ônibus caminhão", "onibus caminhao",
+      "caminhão venda", "caminhao venda", "caminhões venda", "caminhoes venda", "caminhão usado", "caminhao usado",
+      "caminhões usados", "caminhoes usados", "venda caminhão", "venda caminhao", "compra caminhão", "compra caminhao",
+      "leilão caminhão", "leilao caminhao", "seguro caminhão", "seguro caminhao", "financiamento caminhão",
+      "financiamento caminhao", "consórcio caminhão", "consorcio caminhao",
+      "diesel", "mecânica caminhão", "mecanica caminhao", "oficina caminhão", "oficina caminhao", "peças caminhão",
+      "pecas caminhao", "autopeças caminhão", "autopecas caminhao", "pneus caminhão", "pneus caminhao",
+      "tacógrafo", "tacografo", "rastreador caminhão", "rastreador caminhao", "rastreamento caminhão",
+      "rastreamento caminhao", "motor diesel", "caminhão quebrado", "caminhao quebrado",
+      "scania", "scania caminhão", "scania caminhao", "volvo", "volvo caminhão", "volvo caminhao",
+      "mercedes caminhão", "mercedes caminhao", "mercedes benz caminhão", "mercedes benz caminhao",
+      "iveco", "iveco caminhão", "iveco caminhao", "daf", "daf caminhão", "daf caminhao",
+      "man caminhão", "man caminhao", "vw caminhões", "vw caminhoes", "volkswagen caminhões", "volkswagen caminhoes",
+      "ford cargo", "volkswagen constellation", "mb atego", "mb axor", "mb actros", "scania r", "scania p",
+      "blog do caminhoneiro", "irmãos caminhoneiros", "irmaos caminhoneiros", "caminhoneiros brasil",
+      "brasil caminhoneiros", "vida de caminhoneiro", "loucos por caminhão", "loucos por caminhao",
+      "canal de caminhão", "canal de caminhao", "truck video", "truck simulator", "euro truck", "american truck"
+    );
+  }
+
+  const cap = Math.max(80, Math.min(220, Number(requestedLimit || 20) >= 300 ? 200 : Number(requestedLimit || 20) >= 200 ? 170 : Number(requestedLimit || 20) >= 100 ? 130 : 90));
+  return uniqTerms(terms).slice(0, cap);
+}
+
+function scoreEntityForQuery(item, primaryQuery = "") {
+  const q = normalizeSearchTerm(primaryQuery);
+  const title = normalizeSearchTerm(item?.title || "");
+  const username = normalizeSearchTerm(item?.username || "");
+  let score = 0;
+  if (title === q || username === q) score += 100;
+  if (title.includes(q)) score += 40;
+  if (username.includes(q)) score += 35;
+  if (item?.sourceKind === "contacts_search") score += 8;
+  if (item?.type === "channel") score += 4;
+  if (item?.type === "group") score += 3;
+  return score;
+}
+
 async function buildOwnedSets() {
   const ownedIds = new Set();
   const ownedUsernames = new Set();
@@ -140,7 +265,7 @@ async function gatherFromSearchGlobalCatalog(client, q, selected, expandedLimit)
   let offsetPeer = new Api.InputPeerEmpty();
   let offsetId = 0;
 
-  for (let page = 0; page < 30 && items.length < expandedLimit; page += 1) {
+  for (let page = 0; page < 45 && items.length < expandedLimit; page += 1) {
     let global = null;
     try {
       global = await client.invoke(new Api.messages.SearchGlobal({
@@ -192,28 +317,42 @@ export async function searchGlobalEntities(query = "", entityTypes = [], limit =
 
   const client = await startTelegram();
   const selected = normalizeSet(entityTypes);
-  const expandedLimit = Math.max(Number(limit || 20) * 12, 240);
+  const wanted = Math.max(Number(limit || 20), 1);
+  const expandedLimit = Math.max(wanted * 55, 1200);
+  const queryVariants = buildGlobalEntityQueries(q, wanted);
   const diagnostics = {
-    requestedLimit: Number(limit || 20),
+    requestedLimit: wanted,
+    queryVariants,
     contactsCandidates: 0,
     globalCandidates: 0,
     returnedTotal: 0,
     shortfall: 0,
-    note: "A busca global depende do retorno efetivo da API/MTProto do Telegram; quando a API não devolve entidades públicas suficientes com username, o total final pode ficar abaixo do limite solicitado."
+    note: "A busca global V5 usa varredura adaptativa pelo limite escolhido pelo usuário, com dicionário ampliado por domínio e progresso monotônico. O total final ainda depende das entidades públicas efetivamente retornadas pela API/MTProto do Telegram."
   };
 
   const { ownedIds, ownedUsernames, ownedTitles } = await buildOwnedSets();
+  const merged = [];
 
-  const contactsItems = await gatherFromContactsSearch(client, q, selected, expandedLimit);
-  const globalItems = await gatherFromSearchGlobalCatalog(client, q, selected, expandedLimit);
-  diagnostics.contactsCandidates = contactsItems.length;
-  diagnostics.globalCandidates = globalItems.length;
+  for (const term of queryVariants) {
+    const remaining = Math.max(expandedLimit - merged.length, wanted);
+    const contactsItems = await gatherFromContactsSearch(client, term, selected, remaining);
+    diagnostics.contactsCandidates += contactsItems.length;
+    merged.push(...contactsItems);
+    if (merged.length >= expandedLimit) break;
+  }
 
-  let items = [...contactsItems, ...globalItems];
+  for (const term of queryVariants) {
+    if (merged.length >= expandedLimit) break;
+    const remaining = Math.max(expandedLimit - merged.length, wanted);
+    const globalItems = await gatherFromSearchGlobalCatalog(client, term, selected, remaining);
+    diagnostics.globalCandidates += globalItems.length;
+    merged.push(...globalItems);
+  }
 
-  items = items.filter((item) => {
+  let items = merged.filter((item) => {
     if (!item?.isPublicUsable) return false;
     if (!String(item?.username || "").trim()) return false;
+    if (!matchEntityType(item, selected)) return false;
     if (isOwned(item, ownedIds, ownedUsernames, ownedTitles)) return false;
     return true;
   });
@@ -224,7 +363,11 @@ export async function searchGlobalEntities(query = "", entityTypes = [], limit =
       : `i:${String(item.id || "")}:${String(item.type || "")}`
   );
 
-  items = items.slice(0, Number(limit || 20));
+  items = items
+    .map((item) => ({ ...item, relevanceScore: scoreEntityForQuery(item, q) }))
+    .sort((a, b) => Number(b.relevanceScore || 0) - Number(a.relevanceScore || 0) || String(a.title || "").localeCompare(String(b.title || ""), "pt-BR"))
+    .slice(0, wanted);
+
   diagnostics.returnedTotal = items.length;
   diagnostics.shortfall = Math.max(0, diagnostics.requestedLimit - items.length);
 
@@ -282,8 +425,9 @@ export async function searchGlobalEntitiesStream(query = "", entityTypes = [], l
 
   const client = await startTelegram();
   const selected = normalizeSet(entityTypes);
-  const expandedLimit = Math.max(Number(limit || 20) * 12, 240);
   const wanted = Math.max(Number(limit || 20), 1);
+  const expandedLimit = Math.max(wanted * 55, 1200);
+  const queryVariants = buildGlobalEntityQueries(q, wanted);
 
   onEvent?.({ type: "start", query: q, total: wanted });
 
@@ -292,13 +436,21 @@ export async function searchGlobalEntitiesStream(query = "", entityTypes = [], l
   const seen = new Set();
   const diagnostics = {
     requestedLimit: wanted,
+    queryVariants,
     contactsCandidates: 0,
     globalPagesScanned: 0,
     globalRawMessages: 0,
     globalEntityCandidates: 0,
     emittedPublicUsernameEntities: 0,
     shortfall: 0,
-    note: "A busca global depende do retorno efetivo da API/MTProto do Telegram; quando a API não devolve entidades públicas suficientes com username, o total final pode ficar abaixo do limite solicitado."
+    note: "A busca global V5 usa varredura adaptativa pelo limite escolhido pelo usuário, com dicionário ampliado por domínio e progresso monotônico. O total final ainda depende das entidades públicas efetivamente retornadas pela API/MTProto do Telegram."
+  };
+
+  let maxPercent = 0;
+  const emitProgress = (payload = {}) => {
+    const rawPercent = Number(payload.percent || 0) || 0;
+    maxPercent = Math.max(maxPercent, rawPercent);
+    onEvent?.({ ...payload, percent: maxPercent });
   };
 
   const tryEmit = (summary, percent = 0) => {
@@ -311,70 +463,73 @@ export async function searchGlobalEntitiesStream(query = "", entityTypes = [], l
       : `i:${String(summary.id || "")}:${String(summary.type || "")}`;
     if (!key || seen.has(key)) return;
     seen.add(key);
-    emitted.push(summary);
-    onEvent?.({ type: "item", item: summary });
-    onEvent?.({ type: "progress", processed: emitted.length, total: wanted, percent: Math.min(98, Math.max(percent, Math.round((emitted.length / wanted) * 100))) });
+    const item = { ...summary, relevanceScore: scoreEntityForQuery(summary, q) };
+    emitted.push(item);
+    onEvent?.({ type: "item", item });
+    emitProgress({ type: "progress", processed: emitted.length, total: wanted, percent: Math.min(98, Math.max(percent, Math.round((emitted.length / wanted) * 100))) });
   };
 
-  const contactsItems = await gatherFromContactsSearch(client, q, selected, expandedLimit);
-  diagnostics.contactsCandidates = contactsItems.length;
-  for (const item of contactsItems) {
-    tryEmit(item, 35);
-    if (emitted.length >= wanted) break;
-  }
-
-  if (emitted.length < wanted) {
-    const globalItems = [];
-    const localSeen = new Set();
-    let offsetRate = 0;
-    let offsetPeer = new Api.InputPeerEmpty();
-    let offsetId = 0;
-
-    const maxGlobalPages = Math.min(30, Math.max(8, Math.ceil(wanted / 8)));
-    for (let page = 0; page < maxGlobalPages && emitted.length < wanted; page += 1) {
-      let global = null;
-      try {
-        global = await client.invoke(new Api.messages.SearchGlobal({
-          q,
-          filter: new Api.InputMessagesFilterEmpty(),
-          minDate: 0,
-          maxDate: 0,
-          offsetRate,
-          offsetPeer,
-          offsetId,
-          limit: 100,
-        }));
-      } catch {
-        break;
-      }
-
-      diagnostics.globalPagesScanned = page + 1;
-      const rawMessages = global?.messages || [];
-      diagnostics.globalRawMessages += rawMessages.length;
-      const mergedEntities = [...(global?.chats || []), ...(global?.users || [])];
-      diagnostics.globalEntityCandidates += mergedEntities.length;
-      for (const entity of mergedEntities) {
-        const summary = summarizeEntity(entity, "global_messages");
-        const key = summary.username
-          ? `u:${String(summary.username).replace(/^@/, "").toLowerCase()}`
-          : `i:${String(summary.id || "")}:${String(summary.type || "")}`;
-        if (!key || localSeen.has(key)) continue;
-        localSeen.add(key);
-        globalItems.push(summary);
-        tryEmit(summary, 45 + Math.round(((page + 1) / maxGlobalPages) * 45));
-        if (emitted.length >= wanted) break;
-      }
-
-      if (!rawMessages.length) break;
-      const last = rawMessages[rawMessages.length - 1];
-      offsetId = Number(last?.id || 0);
-      offsetRate = Number(global?.nextRate ?? global?.next_rate ?? 0) || 0;
-      offsetPeer = new Api.InputPeerEmpty();
-      onEvent?.({ type: "progress", processed: emitted.length, total: wanted, percent: Math.min(95, 45 + Math.round(((page + 1) / maxGlobalPages) * 45)) });
+  for (let i = 0; i < queryVariants.length && emitted.length < wanted; i += 1) {
+    const term = queryVariants[i];
+    const contactsItems = await gatherFromContactsSearch(client, term, selected, expandedLimit);
+    diagnostics.contactsCandidates += contactsItems.length;
+    for (const item of contactsItems) {
+      tryEmit(item, 10 + Math.round(((i + 1) / queryVariants.length) * 25));
+      if (emitted.length >= wanted) break;
     }
   }
 
-  const items = emitted.slice(0, wanted);
+  if (emitted.length < wanted) {
+    const maxGlobalPagesPerTerm = wanted >= 300 ? 12 : wanted >= 200 ? 11 : wanted >= 100 ? 9 : 7;
+    for (let termIndex = 0; termIndex < queryVariants.length && emitted.length < wanted; termIndex += 1) {
+      const term = queryVariants[termIndex];
+      let offsetRate = 0;
+      let offsetPeer = new Api.InputPeerEmpty();
+      let offsetId = 0;
+
+      for (let page = 0; page < maxGlobalPagesPerTerm && emitted.length < wanted; page += 1) {
+        let global = null;
+        try {
+          global = await client.invoke(new Api.messages.SearchGlobal({
+            q: term,
+            filter: new Api.InputMessagesFilterEmpty(),
+            minDate: 0,
+            maxDate: 0,
+            offsetRate,
+            offsetPeer,
+            offsetId,
+            limit: 100,
+          }));
+        } catch {
+          break;
+        }
+
+        diagnostics.globalPagesScanned += 1;
+        const rawMessages = global?.messages || [];
+        diagnostics.globalRawMessages += rawMessages.length;
+        const mergedEntities = [...(global?.chats || []), ...(global?.users || [])];
+        diagnostics.globalEntityCandidates += mergedEntities.length;
+
+        for (const entity of mergedEntities) {
+          const summary = summarizeEntity(entity, "global_messages");
+          tryEmit(summary, 40 + Math.round(((termIndex + 1) / queryVariants.length) * 50));
+          if (emitted.length >= wanted) break;
+        }
+
+        if (!rawMessages.length) break;
+        const last = rawMessages[rawMessages.length - 1];
+        offsetId = Number(last?.id || 0);
+        offsetRate = Number(global?.nextRate ?? global?.next_rate ?? 0) || 0;
+        offsetPeer = new Api.InputPeerEmpty();
+        emitProgress({ type: "progress", processed: emitted.length, total: wanted, percent: Math.min(95, 40 + Math.round(((termIndex + 1) / queryVariants.length) * 50)) });
+      }
+    }
+  }
+
+  const items = emitted
+    .sort((a, b) => Number(b.relevanceScore || 0) - Number(a.relevanceScore || 0) || String(a.title || "").localeCompare(String(b.title || ""), "pt-BR"))
+    .slice(0, wanted);
+
   diagnostics.emittedPublicUsernameEntities = items.length;
   diagnostics.shortfall = Math.max(0, wanted - items.length);
   onEvent?.({
@@ -414,3 +569,4 @@ export async function searchGlobalEntitiesStream(query = "", entityTypes = [], l
     },
   };
 }
+

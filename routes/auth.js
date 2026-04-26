@@ -472,6 +472,91 @@ router.get("/public/resolve", async (req, res) => {
 });
 
 
+// PATCH BUSCA GLOBAL V3 — rotas públicas usadas pelo botão "Usar".
+// Corrige 404 em /auth/public/messages/stream e mantém streaming NDJSON para a grade.
+router.get("/public/messages", async (req, res) => {
+  try {
+    const reference = String(req.query.reference || "").trim();
+    const limit = Number(req.query.limit || 100);
+    const data = await getPublicMessages(reference, limit, pickFilters(req.query));
+    return res.json({ ok: true, ...data });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || "Falha ao carregar mensagens públicas." });
+  }
+});
+
+router.get("/public/messages/stream", async (req, res) => {
+  const reference = String(req.query.reference || "").trim();
+  const limit = Number(req.query.limit || 100);
+  let clientClosed = false;
+  req.on("close", () => { clientClosed = true; });
+
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+
+  const send = (payload) => {
+    if (clientClosed || res.destroyed || res.writableEnded) return;
+    try {
+      res.write(`${JSON.stringify(payload)}\n`);
+      res.flush?.();
+    } catch {}
+  };
+
+  try {
+    await streamPublicMessages(reference, limit, pickFilters(req.query), send);
+    if (!clientClosed && !res.destroyed && !res.writableEnded) res.end();
+  } catch (error) {
+    send({ type: "fatal", error: error.message || "Falha ao carregar mensagens públicas." });
+    if (!clientClosed && !res.destroyed && !res.writableEnded) res.end();
+  }
+});
+
+router.get("/public/search", async (req, res) => {
+  try {
+    const reference = String(req.query.reference || "").trim();
+    const query = String(req.query.query || "").trim();
+    const limit = Number(req.query.limit || 100);
+    const data = await searchPublicMessages(reference, query, limit, pickFilters(req.query));
+    return res.json({ ok: true, ...data });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || "Falha na busca pública." });
+  }
+});
+
+router.get("/public/search/stream", async (req, res) => {
+  const reference = String(req.query.reference || "").trim();
+  const query = String(req.query.query || "").trim();
+  const limit = Number(req.query.limit || 100);
+  let clientClosed = false;
+  req.on("close", () => { clientClosed = true; });
+
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+
+  const send = (payload) => {
+    if (clientClosed || res.destroyed || res.writableEnded) return;
+    try {
+      res.write(`${JSON.stringify(payload)}\n`);
+      res.flush?.();
+    } catch {}
+  };
+
+  try {
+    await streamSearchPublicMessages(reference, query, limit, pickFilters(req.query), send);
+    if (!clientClosed && !res.destroyed && !res.writableEnded) res.end();
+  } catch (error) {
+    send({ type: "fatal", error: error.message || "Falha na busca pública." });
+    if (!clientClosed && !res.destroyed && !res.writableEnded) res.end();
+  }
+});
+
+
 
 
 router.get("/media/open", async (req, res) => {
