@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/manualdeinvestigacaodigital/telegram-app/main/Telegram_logo.svg.png" width="140">
+  <img src="https://raw.githubusercontent.com/manualdeinvestigacaodigital/telegram-app/main/Telegram_logo.svg.png" width="120">
 </p>
 
 <h1 align="center">Telegram Investigation Tool</h1>
@@ -16,16 +16,16 @@
 
 ## 🔎 VISÃO GERAL
 
-Ferramenta desenvolvida para **coleta, análise e exploração estruturada de dados do Telegram**, com foco em:
+Ferramenta desenvolvida para **coleta, análise e exploração estruturada de dados da plataforma Telegram**, com foco em:
 
 - 🕵️ investigação digital  
 - 🧠 inteligência  
 - 🌐 OSINT  
 
-O sistema permite:
+A aplicação permite:
 
-- análise completa de chats, grupos e canais  
-- busca interna e global  
+- análise de chats, grupos e canais  
+- busca interna e global de entidades  
 - coleta de membros  
 - extração de mensagens e mídias  
 - exportação estruturada com integridade verificável  
@@ -34,120 +34,179 @@ O sistema permite:
 
 ## 🧠 ARQUITETURA DO SISTEMA
 
-A aplicação é composta por:
-
 ### 🔹 Backend (Node.js + Express)
-- gerenciamento de sessão Telegram
-- integração via GramJS
-- streaming de dados (NDJSON)
-- cache local de mídias
 
-### 🔹 Serviços principais
-- `telegram.js` → núcleo de comunicação com Telegram :contentReference[oaicite:6]{index=6}  
-- `telegram_public.js` → consultas públicas  
-- `telegram_global.js` → busca global de entidades :contentReference[oaicite:7]{index=7}  
+Responsável por:
+
+- autenticação com Telegram  
+- integração via biblioteca **GramJS**  
+- streaming de dados (NDJSON)  
+- gerenciamento de cache local  
+
+---
+
+### 🔹 Serviços internos
+
+- `services/telegram.js` → comunicação com Telegram  
+- `services/telegram_public.js` → consultas públicas  
+- `services/telegram_global.js` → busca global  
+
+---
 
 ### 🔹 Frontend
-- interface web analítica
-- grid estruturada de dados
-- filtros avançados
-- exportação de resultados :contentReference[oaicite:8]{index=8}  
+
+Interface web com:
+
+- grid estruturada de resultados  
+- filtros avançados  
+- visualização de mídia  
+- exportação de dados  
 
 ---
 
-## ⚙️ REQUISITOS
+## ⚙️ PREPARAÇÃO DO AMBIENTE
 
-- Node.js (v18+ recomendado)
-- NPM
-- Python (dependências internas)
-- Conta Telegram ativa
-- API_ID e API_HASH
+### 📥 Instalar Node.js
+
+👉 https://nodejs.org
+
+- Baixe a versão **LTS**
+- Instale normalmente
 
 ---
 
-## 🔍 VERIFICAÇÃO
+### 📥 Instalar Python
+
+👉 https://www.python.org/downloads/
+
+⚠️ Durante a instalação, marque:
+
+✔ Add Python to PATH
+
+---
+
+### 🔍 Verificar instalação
+
+No Prompt de Comando (CMD):
 
 ```bash
 node -v
 npm -v
 python --version
-📥 INSTALAÇÃO
+
+Se retornar versões → ambiente pronto
+
+🔐 OBTENÇÃO DA API DO TELEGRAM
+
+👉 https://my.telegram.org
+
+Passo a passo:
+Faça login com seu número
+Acesse API development tools
+Crie uma aplicação
+Copie:
+API_ID
+📥 INSTALAÇÃO DO PROJETO
 git clone https://github.com/manualdeinvestigacaodigital/telegram-app.git
 cd telegram-app
 npm install
+📦 O que o npm install faz:
+instala dependências do projeto
+instala biblioteca GramJS
+prepara ambiente backend
 ▶️ EXECUÇÃO
 node server.js
-🔐 CONFIGURAÇÃO AUTOMÁTICA
+🔑 CONFIGURAÇÃO AUTOMÁTICA
 
 Na primeira execução:
 
-sistema solicita API_ID e API_HASH
-cria automaticamente o .env
+O sistema irá solicitar:
 
+API_ID
+API_HASH
+
+✔ O arquivo .env será criado automaticamente
 ✔ Não é necessário criar manualmente
 
-🔑 LOGIN
+🔐 LOGIN NO TELEGRAM
 
-O sistema solicitará:
+Durante execução no terminal:
 
-📱 telefone
-🔢 código Telegram
-🔒 senha (se houver 2FA)
+Você informará:
 
-✔ Sessão salva em session.txt
-✔ Login persistente
+📱 número de telefone
+🔢 código enviado pelo Telegram
+🔒 senha (caso tenha 2FA)
 
-🌐 ACESSO
+✔ Sessão salva automaticamente em session.txt
+✔ Login persistente nas próximas execuções
+
+🌐 ACESSO AO SISTEMA
+
+Abra no navegador:
+
 http://localhost:3000
 🚀 FUNCIONALIDADES
 📡 1. Consulta interna
-leitura de chats da conta
-análise de mensagens
-extração de mídia
-coleta de membros
+
+Permite analisar dados da conta:
+
+chats
+grupos
+canais
+mensagens
+membros
 🌐 2. Busca global
-identificação de entidades públicas
-canais, grupos e usuários
-integração com busca avançada
+
+Permite localizar entidades públicas:
+
+canais
+grupos
+usuários
 🔍 3. Filtros avançados
-data inicial/final
-autor / username
-telefone
-tipo de mídia
-mensagens encaminhadas
-views mín./máx.
+
+Refinamento por:
+
+📅 data inicial/final
+👤 autor
+🔤 username
+📞 telefone
+🖼️ tipo de mídia
+👁️ views
 📊 4. Resultado estruturado
 
 Exibe:
 
 mensagens
-chats
 autores
 mídia
 metadados
 
-Com ações:
+Ações disponíveis:
 
-▶️ Usar entidade
-🔐 Ingressar em grupo/canal
+▶️ usar entidade
+🔐 ingressar em grupo/canal
 🎥 EXTRAÇÃO DE MÍDIA
+
+Suporte completo a:
+
 imagens
 vídeos
 documentos
-áudio
+áudios
 
 ✔ download automático
 ✔ cache local
 ✔ miniaturas
 
-📁 EXPORTAÇÃO
+📁 EXPORTAÇÃO DE DADOS
 
 Formatos disponíveis:
 
-HTML
-XLS
-JSON
-TXT
+📄 HTML
+📊 XLS
+🧾 JSON
+📑 TXT
 🔐 INTEGRIDADE DOS DADOS
 
 Geração automática de:
@@ -162,7 +221,7 @@ rastreabilidade
 cadeia de custódia
 🔄 FLUXO OPERACIONAL
 Iniciar sistema
-Login Telegram
+Fazer login
 Carregar chats
 Executar busca
 Aplicar filtros
@@ -181,7 +240,7 @@ código de verificação
 
 [Não verificado] Pode variar conforme:
 
-mudanças na API Telegram
+mudanças na API do Telegram
 restrições de acesso
 conteúdo privado
 📜 LICENÇA
@@ -194,8 +253,9 @@ investigação digital
 
 Não autorizado para:
 
-violação de termos de uso
-coleta ilegal de dados
+violação de termos
+coleta indevida de dados
+atividades ilícitas
 👤 AUTOR
 
 Guilherme Caselli
@@ -210,3 +270,6 @@ Especialista em investigação digital
 🌐 OSINT
 📊 Análise de dados
 📁 Produção de evidência digital
+API_HASH
+
+⚠️ Essas credenciais são obrigatórias para funcionamento da ferramenta.
