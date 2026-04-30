@@ -157,15 +157,15 @@ grupos
 canais
 mensagens
 membros
-🌐 2. Busca global
 
+🌐 2. Busca global
 Permite localizar entidades públicas:
 
 canais
 grupos
 usuários
-🔍 3. Filtros avançados
 
+🔍 3. Filtros avançados
 Refinamento por:
 
 📅 data inicial/final
