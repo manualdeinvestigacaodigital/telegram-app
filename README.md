@@ -257,6 +257,28 @@ Não autorizado para:
 violação de termos
 coleta indevida de dados
 atividades ilícitas
+
+📚 REFERÊNCIA TÉCNICA E AUTORIA
+
+Este projeto integra um conjunto mais amplo de ferramentas voltadas à investigação digital, inteligência e OSINT.
+
+O autor deste projeto é também autor da obra:
+
+📖 Manual de Investigação Digital — Editora Juspodivm
+
+🔗 https://www.editorajuspodivm.com.br/authors/page/view/id/206/
+
+A obra reúne fundamentos teóricos e aplicações práticas voltadas à investigação digital contemporânea, incluindo metodologias, técnicas operacionais e utilização de ferramentas tecnológicas para coleta, preservação e análise de dados.
+
+🧠 INTEGRAÇÃO COM A OBRA
+
+Este repositório representa uma aplicação prática de técnicas abordadas no livro, permitindo:
+
+✔ Aplicação direta de conceitos de OSINT
+✔ Estruturação de coleta de dados digitais
+✔ Organização de evidências
+✔ Apoio a análises investigativas
+
 👤 AUTOR
 
 Guilherme Caselli
