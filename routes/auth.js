@@ -156,14 +156,14 @@ router.get("/chats/stream", async (req, res) => {
     const refresh = String(req.query.refresh || "").trim() === "1";
     const chats = await listChats(refresh);
     const total = Array.isArray(chats) ? chats.length : 0;
-    send({ type: "start", total });
+    send({ type: "start", total, progress: total ? 1 : 0 });
     for (let i = 0; i < total; i += 1) {
-      send({ type: "chat", item: chats[i], processed: i + 1, total, percent: total ? Math.round(((i + 1) / total) * 100) : 100 });
+      send({ type: "chat", item: chats[i], chat: chats[i], processed: i + 1, total, percent: total ? Math.round(((i + 1) / total) * 100) : 100, progress: total ? Math.round(((i + 1) / total) * 100) : 100 });
     }
-    send({ type: "done", total, items: chats });
+    send({ type: "done", total, items: chats, progress: 100 });
     res.end();
   } catch (error) {
-    send({ type: "fatal", error: error.message || "Falha ao carregar lista de chats em stream." });
+    send({ type: "fatal", error: error.message || "Falha ao carregar lista de chats em stream.", message: error.message || "Falha ao carregar lista de chats em stream." });
     res.end();
   }
 });

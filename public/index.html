@@ -182,7 +182,78 @@ function entityJoinReference(it){return it?.username?('@'+String(it.username).re
 async function joinPublicEntity(ref,title){const cleanRef=String(ref||'').trim();if(!cleanRef)throw new Error('Referência pública inválida para ingresso.');setStatus(`Solicitando ingresso/acesso em ${title||cleanRef}...`);resetProgress('Solicitando ingresso/acesso...');setProgress('Solicitando ingresso/acesso...',25);const data=await apiPost('/auth/public/join',{reference:cleanRef});finishProgress('Solicitação de ingresso/acesso concluída');const msg=data?.message||`Ingresso/acesso solicitado em ${title||cleanRef}.`;setStatus(msg,'success');return data;}
 function renderEntities(payload){state.raw=payload||null;state.items=payload?.items||[];state.members=[];state.meta=payload?.meta||null;const showJoin=state.meta?.operation==='global_entities'||state.meta?.sourceKind==='global_entities';renderMeta(state.items,state.meta);$('tbody').innerHTML=state.items.map((it,idx)=>{const ref=entityJoinReference(it);const useBtn=it.canUseInInternal&&it.consultaRef?`<button type="button" class="use-result-btn" data-ref="${esc(it.username?('@'+String(it.username).replace(/^@/,'')):(it.consultaRef||it.id||''))}" data-title="${esc(it.title||it.consultaRef||it.id||'')}" data-public="1">Usar</button>`:'—';const joinBtn=showJoin&&ref?`<button type="button" class="join-result-btn" data-ref="${esc(ref)}" data-title="${esc(it.title||it.consultaRef||it.id||'')}">Ingressar / Solicitar acesso</button>`:'—';return `<tr><td>${idx+1}</td><td>${esc(it.type||'—')}</td><td>${esc(it.title||'—')}</td><td>${esc(it.username?'@'+String(it.username).replace(/^@/,''):'—')}</td><td>${esc(it.id||'—')}</td><td>${esc(it.flags||'—')}</td><td>${it.link?`<a href="${esc(it.link)}" target="_blank" rel="noreferrer">Abrir</a>`:'—'}</td><td>${useBtn}</td>${showJoin?`<td>${joinBtn}</td>`:''}</tr>`;}).join('');$('resultHead').innerHTML=showJoin?'<colgroup><col style="width:42px"><col style="width:90px"><col><col style="width:190px"><col style="width:112px"><col style="width:120px"><col style="width:76px"><col style="width:145px"><col style="width:150px"></colgroup><tr><th>#</th><th>Tipo</th><th>Título</th><th>Username</th><th>ID</th><th>Flags</th><th>Link</th><th>Realizar consulta</th><th>Ingressar / Solicitar acesso</th></tr>':'<colgroup><col style="width:46px"><col style="width:110px"><col style="width:38%"><col style="width:220px"><col style="width:120px"><col style="width:150px"><col style="width:90px"><col style="width:170px"></colgroup><tr><th>#</th><th>Tipo</th><th>Título</th><th>Username</th><th>ID</th><th>Flags</th><th>Link</th><th>Realizar consulta</th></tr>';$('resultTable').className='entities-table';$('tableWrap').style.display=state.items.length?'block':'none';$('membersWrap').style.display='none';if(state.items.length){$('emptyBox').style.display='none';}else{setEmptyState('Nenhuma entidade encontrada.');}$('jsonBox').textContent=JSON.stringify(payload||{},null,2);document.querySelectorAll('.use-result-btn').forEach(btn=>btn.addEventListener('click',()=>selectChatById(btn.dataset.ref||'',btn.dataset.title||'',true,btn.dataset.public==='1')));document.querySelectorAll('.join-result-btn').forEach(btn=>btn.addEventListener('click',async()=>{try{btn.disabled=true;btn.textContent='Solicitando...';const data=await joinPublicEntity(btn.dataset.ref||'',btn.dataset.title||'');if(data?.status==='joined')btn.textContent='Ingressou';else if(data?.status==='already_participant')btn.textContent='Já participa';else if(data?.status==='request_sent')btn.textContent='Solicitado';else btn.textContent='Concluído';}catch(e){btn.disabled=false;btn.textContent='Ingressar / Solicitar acesso';setStatus(e.message||'Falha ao ingressar/solicitar acesso.','error');}}));}
 function startPseudoProgress(title='Processando...'){let pct=0;setProgress(title,pct);return setInterval(()=>{pct=Math.min(92,pct+4);setProgress(title,pct);},700);}
-async function loadChats(force=false){if(state.loadingChats)return;if(state.chatsLoaded&&!force)return;state.loadingChats=true;resetProgress('Carregando lista de chats no 1º acesso...');setStatus('Carregando lista de chats no 1º acesso...');let timer=startPseudoProgress('Carregando lista de chats no 1º acesso...');const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);try{const data=await apiGet(`/auth/chats?${qs({refresh:force?'1':''})}`,controller);state.chats=Array.isArray(data.items)?data.items:[];if(state.chats.length){populateChatSelect();state.chatsLoaded=true;clearInterval(timer);finishProgress('Lista interna de chats pronta');setStatus(`Lista interna de chats pronta. Total carregado: ${state.chats.length}`,'success');}else{clearInterval(timer);finishProgress('Aguardando carregamento inicial');setStatus('Lista de chats ainda não carregou. Você pode usar Chat ID manualmente ou clicar em “Usar” no resultado de entidades.','error');}}catch(error){clearInterval(timer);finishProgress('Lista de chats indisponível no momento');setStatus('Lista de chats ainda não carregou. Você pode usar Chat ID manualmente ou clicar em “Usar” no resultado de entidades.','error');}finally{clearTimeout(timeout);state.loadingChats=false;}}
+async function loadChats(force=false){
+  if(state.loadingChats)return;
+  if(state.chatsLoaded&&!force)return;
+  state.loadingChats=true;
+  resetProgress('Carregando lista de chats no 1º acesso...');
+  setStatus('Carregando lista de chats no 1º acesso...');
+  let timer=startPseudoProgress('Carregando lista de chats no 1º acesso...');
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),90000);
+  const normalizeChats=(items)=>Array.isArray(items)?items.filter(Boolean):[];
+  const applyChats=(items)=>{
+    const chats=normalizeChats(items);
+    if(!chats.length)return false;
+    state.chats=chats;
+    populateChatSelect();
+    state.chatsLoaded=true;
+    finishProgress('Lista interna de chats pronta');
+    setStatus(`Lista interna de chats pronta. Total carregado: ${state.chats.length}`,'success');
+    return true;
+  };
+  const loadViaStream=async()=>{
+    const res=await fetch(`/auth/chats/stream?${qs({refresh:force?'1':''})}`,{signal:controller.signal});
+    if(!res.ok||!res.body)return [];
+    const reader=res.body.getReader();
+    const decoder=new TextDecoder('utf-8');
+    let buffer='';
+    const items=[];
+    while(true){
+      const part=await reader.read();
+      if(part.done)break;
+      buffer+=decoder.decode(part.value,{stream:true});
+      let idx;
+      while((idx=buffer.indexOf('\n'))>=0){
+        const line=buffer.slice(0,idx).trim();
+        buffer=buffer.slice(idx+1);
+        if(!line)continue;
+        let event=null;
+        try{event=JSON.parse(line);}catch{continue;}
+        if(event.type==='fatal'||event.type==='error')throw new Error(event.error||event.message||'Falha ao carregar lista de chats.');
+        if(event.type==='chat'){
+          const chat=event.item||event.chat;
+          if(chat)items.push(chat);
+          const total=Number(event.total||0)||0;
+          const pct=Number(event.percent||event.progress||0)||(total?Math.round((items.length/total)*100):Math.min(95,items.length));
+          setProgress('Carregando lista de chats no 1º acesso...',Math.min(99,pct));
+        }
+        if(event.type==='done'){
+          if(Array.isArray(event.items)&&event.items.length)items.splice(0,items.length,...event.items.filter(Boolean));
+        }
+      }
+    }
+    const tail=buffer.trim();
+    if(tail){try{const event=JSON.parse(tail);if(Array.isArray(event.items)&&event.items.length)items.splice(0,items.length,...event.items.filter(Boolean));}catch{}}
+    return items;
+  };
+  try{
+    let data=null;
+    try{data=await apiGet(`/auth/chats?${qs({refresh:force?'1':''})}`,controller);}catch(primaryError){data=null;}
+    if(applyChats(data?.items))return;
+    const streamed=await loadViaStream();
+    if(applyChats(streamed))return;
+    finishProgress('Lista interna de chats vazia');
+    setStatus('Nenhum chat foi retornado pelo Telegram nesta sessão. Verifique se o login foi concluído no console e tente carregar novamente.','error');
+  }catch(error){
+    finishProgress('Lista de chats indisponível no momento');
+    setStatus(error?.message||'Falha ao carregar lista interna de chats.','error');
+  }finally{
+    clearInterval(timer);
+    clearTimeout(timeout);
+    state.loadingChats=false;
+  }
+}
 async function ensureChatsOnce(){if(!state.chatsLoaded&&!state.loadingChats)await loadChats(true);}
 async function streamNdjson(url,handlers={}){const token=handlers.token!==undefined?handlers.token:state.activeToken;const controller=new AbortController();state.currentAbort=controller;const res=await fetch(url,{signal:controller.signal});if(!res.ok){let msg='Falha na requisição.';try{const data=await res.json();msg=data.error||msg;}catch{}throw new Error(msg);}const reader=res.body&&res.body.getReader?res.body.getReader():null;const decoder=new TextDecoder();let buffer='';const dispatch=(event)=>{if(!isActiveToken(token))return;if(!event||typeof event!=='object')return;if(event.type==='fatal')throw new Error(event.error||'Falha na operação.');if(event.type==='start'&&handlers.onStart)return handlers.onStart(event);if(event.type==='item'&&handlers.onItem)return handlers.onItem(event);if(event.type==='progress'&&handlers.onProgress)return handlers.onProgress(event);if(event.type==='end'&&handlers.onEnd)return handlers.onEnd(event);};try{if(!reader){const txt=await res.text();txt.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).forEach(line=>dispatch(JSON.parse(line)));return;}while(true){const out=await reader.read();if(out.done)break;buffer+=decoder.decode(out.value,{stream:true});let idx;while((idx=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,idx).trim();buffer=buffer.slice(idx+1);if(!line)continue;dispatch(JSON.parse(line));}}const tail=buffer.trim();if(tail)dispatch(JSON.parse(tail));}catch(err){if(err&&err.name==='AbortError')return;throw err;}finally{if(state.currentAbort===controller)state.currentAbort=null;}}
 async function runLoadMessages(){if(state.currentChatMode==='public')return runLoadPublicMessages();const token=startOperation('messages');$('queryInput').value='';const chatId=($('chatIdInput').value||$('chatSelect').value||'').trim();const limit=Number($('messageLimitInput').value||0)||100;if(!chatId)throw new Error('Selecione um chat ou use um resultado da busca de entidades.');const filters=collectFilters();const hasDateFilters=Boolean(filters.dateFrom||filters.dateTo);clearResultState();state.items=[];state.members=[];state.meta={operation:'messages_chat',generatedAt:new Date().toISOString(),sourceChatTitle:$('chatSearchInput').value||chatId,sourceChatId:String(chatId)};renderMeta(state.items,state.meta);if(hasDateFilters){setStatus('Aplicando filtro por data...');resetProgress('Aplicando filtro por data...');const data=await apiGetCancelable(`/auth/messages/${encodeURIComponent(chatId)}?${qs({limit,...filters})}`,token);if(!isActiveToken(token)||!data)return;renderMessages(data);finishProgress('Filtros aplicados');setStatus(`Filtros aplicados. ${state.items.length} item(ns).`,'success');return;}setStatus(`Carregando ${limit} mensagens... 0`);resetProgress(`Carregando ${limit} mensagens...`);let lastRendered=0;await streamNdjson(`/auth/messages/${encodeURIComponent(chatId)}/stream?${qs({limit,...filters})}`, {token,onStart:(ev)=>{if(!isActiveToken(token))return;state.meta={...state.meta,sourceChatTitle:ev.chatTitle||state.meta.sourceChatTitle};renderMeta(state.items,state.meta);},onItem:(ev)=>{if(!isActiveToken(token))return;state.items.push(ev.item);if(state.items.length===1||state.items.length-lastRendered>=10){renderMessages({items:[...state.items],meta:state.meta},{preserveBase:true});lastRendered=state.items.length;}setStatus(`Carregando ${limit} mensagens... ${state.items.length}`);},onProgress:(ev)=>{if(!isActiveToken(token))return;setProgress(`Carregando ${limit} mensagens...`,ev.percent||0);},onEnd:()=>{if(!isActiveToken(token))return;renderMessages({items:[...state.items],meta:state.meta},{preserveBase:false});finishProgress('Mensagens carregadas');setStatus(`Mensagens carregadas: ${state.items.length}`,'success');}});} 
@@ -491,18 +562,23 @@ loadChats(true);
           if (data.type === "chat") {
             count++;
             total = Number(data.total || total || 0);
-            appendChat(select, data.chat);
+            const chat = data.item || data.chat;
+            if (chat) appendChat(select, chat);
             const pct = Number.isFinite(Number(data.progress)) ? Number(data.progress) : (total ? Math.round((count / total) * 100) : Math.min(95, count % 95));
             setStatusV54C("Carregando lista de chats no 1º acesso...", pct);
           }
 
           if (data.type === "done") {
+            if (Array.isArray(data.items) && data.items.length) {
+              data.items.forEach(function(chat){ appendChat(select, chat); });
+              count = Math.max(count, data.items.length);
+            }
             total = Number(data.total || total || count);
             setStatusV54C("Lista interna de chats pronta. Total carregado: " + total, 100);
           }
 
-          if (data.type === "error") {
-            throw new Error(data.message || "Falha ao carregar chats por stream");
+          if (data.type === "error" || data.type === "fatal") {
+            throw new Error(data.message || data.error || "Falha ao carregar chats por stream");
           }
         }
       }
