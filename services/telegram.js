@@ -692,15 +692,91 @@ async function ensureMessageMedia(tg, chatId, msg, mediaType) {
   return response;
 }
 
+
+
+// PATCH V56 — proteção contra travamento na fase final da carga de mensagens.
+// Alguns downloads de avatar/mídia do Telegram podem ficar pendentes por tempo indeterminado.
+// A grade não deve aguardar uma mídia problemática para concluir a consulta.
+function mediaPlaceholderForMessage(msg, mediaType) {
+  return {
+    hasMedia: Boolean(mediaType),
+    mediaType: mediaType || null,
+    mimeType: null,
+    fileName: null,
+    extension: mediaType ? guessExtension(msg, mediaType) : null,
+    size: msg?.file?.size ?? null,
+    localPath: null,
+    mediaUrl: null,
+    previewUrl: null,
+    thumbnailPath: null,
+    thumbnail: null,
+    hasThumbnail: false,
+    downloadStatus: mediaType ? "deferred" : "none",
+    downloadError: null,
+    existsOnDisk: false,
+    isPreviewable: mediaType === "photo" || mediaType === "video" || mediaType === "pdf",
+    previewMode: mediaType === "photo" ? "image" : (mediaType === "video" ? "video" : (mediaType === "pdf" ? "pdf" : "none")),
+    detectedButFailed: false,
+  };
+}
+
+async function promiseWithTimeout(promise, ms, fallbackValue) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(fallbackValue), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function enrichMessageSafe(tg, dialog, msg, requestedChatId = "", opts = {}) {
+  const chatId = normalizeChatId(requestedChatId, dialog);
+  const chatTitle = dialog?.title || dialog?.name || dialog?.username || "";
+  const mediaType = detectMediaType(msg);
+  const base = {
+    chatId,
+    chatTitle,
+    messageId: msg?.id ?? "",
+    date: normalizeDate(msg?.date),
+    text: msg?.message || "",
+    views: msg?.views ?? 0,
+    senderId: msg?.senderId?.toString?.() ?? null,
+    authorName: "",
+    username: null,
+    phone: null,
+    avatarUrl: null,
+    postLink: buildPostLink(dialog, msg),
+    mediaType,
+    mediaUrl: null,
+    thumbnail: null,
+    previewUrl: null,
+    media: mediaPlaceholderForMessage(msg, mediaType),
+    sourceKind: "internal",
+  };
+
+  const timeoutMs = Number(opts?.timeoutMs || 7000);
+  try {
+    const enriched = await promiseWithTimeout(enrichMessage(tg, dialog, msg, requestedChatId, opts), timeoutMs, null);
+    return enriched || { ...base, enrichmentTimedOut: true };
+  } catch (error) {
+    return { ...base, enrichmentError: error?.message || "Falha ao enriquecer mensagem." };
+  }
+}
+
 async function enrichMessage(tg, dialog, msg, requestedChatId = "", opts = {}) {
   const { authorName, username, phone, sender } = await extractSenderFields(msg);
-  const avatarUrl = opts.light ? null : await ensureAvatarForSender(tg, sender);
+  const avatarUrl = opts.light ? null : await promiseWithTimeout(ensureAvatarForSender(tg, sender), Number(opts.avatarTimeoutMs || 1200), null);
   const chatId = normalizeChatId(requestedChatId, dialog);
   const chatTitle = dialog?.title || dialog?.name || dialog?.username || "";
   const mediaType = detectMediaType(msg);
   const postLink = buildPostLink(dialog, msg);
-  const forwardInfo = await extractForwardInfo(tg, msg);
-  const media = opts.light ? { hasMedia: Boolean(mediaType), mediaType: mediaType || null, mediaUrl: null, thumbnail: null, previewUrl: null } : await ensureMessageMedia(tg, chatId, msg, mediaType);
+  const forwardInfo = await promiseWithTimeout(extractForwardInfo(tg, msg), Number(opts.forwardTimeoutMs || 1200), {});
+  const media = opts.light ? mediaPlaceholderForMessage(msg, mediaType) : await promiseWithTimeout(ensureMessageMedia(tg, chatId, msg, mediaType), Number(opts.mediaTimeoutMs || 3500), mediaPlaceholderForMessage(msg, mediaType));
 
   return {
     chatId,
@@ -996,27 +1072,38 @@ export async function listChats(forceRefresh = false) {
     const mapped = [];
     const seen = new Set();
 
-    for await (const dialog of tg.iterDialogs({})) {
-      const id = dialog.id?.toString?.() ?? "";
-      if (!id || seen.has(id)) continue;
+    const addDialog = (dialog) => {
+      const id = dialog?.id?.toString?.() ?? dialog?.entity?.id?.toString?.() ?? "";
+      if (!id || seen.has(id)) return;
       seen.add(id);
       mapped.push({
         id,
-        title: dialog.title || "",
-        isChannel: Boolean(dialog.isChannel),
-        isGroup: Boolean(dialog.isGroup),
-        isUser: Boolean(dialog.isUser),
-        unreadCount: dialog.unreadCount ?? 0,
-        username: dialog.entity?.username || null,
-        isBot: Boolean(dialog.entity?.bot),
-        kind: dialog.isChannel
+        title: dialog?.title || dialog?.name || dialog?.entity?.title || [dialog?.entity?.firstName, dialog?.entity?.lastName].filter(Boolean).join(" ").trim() || dialog?.entity?.username || "",
+        isChannel: Boolean(dialog?.isChannel || dialog?.entity?.broadcast || dialog?.entity?.className === "Channel"),
+        isGroup: Boolean(dialog?.isGroup || dialog?.entity?.megagroup || dialog?.entity?.className === "Chat"),
+        isUser: Boolean(dialog?.isUser || dialog?.entity?.className === "User"),
+        unreadCount: dialog?.unreadCount ?? 0,
+        username: dialog?.entity?.username || null,
+        isBot: Boolean(dialog?.entity?.bot),
+        kind: dialog?.isChannel || dialog?.entity?.broadcast
           ? "channel"
-          : dialog.isGroup
+          : dialog?.isGroup || dialog?.entity?.megagroup
           ? "group"
-          : dialog.isUser
-          ? (dialog.entity?.bot ? "bot" : "user")
+          : dialog?.isUser || dialog?.entity?.className === "User"
+          ? (dialog?.entity?.bot ? "bot" : "user")
           : "other",
       });
+    };
+
+    for await (const dialog of tg.iterDialogs({})) addDialog(dialog);
+
+    if (!mapped.length) {
+      try {
+        const fallbackDialogs = await tg.getDialogs({ limit: 500 });
+        for (const dialog of fallbackDialogs || []) addDialog(dialog);
+      } catch (fallbackError) {
+        console.warn("[chats] fallback getDialogs falhou:", fallbackError?.message || fallbackError);
+      }
     }
 
     return sortChatsAlpha(mapped);
@@ -1144,11 +1231,17 @@ export async function getMessages(chatId, limit = 50, options = {}, onEvent = nu
   // PATCH FASE3 400MSG: cargas grandes não baixam mídia/avatar na etapa inicial.
   // Isso evita travar em mídia pesada. Mídia completa fica para fase própria/on-demand.
   const useLightEnrich = Boolean(options?.light) || wanted > 150;
-  const concurrency = useLightEnrich ? 16 : 8;
+  const concurrency = useLightEnrich ? 16 : 4;
   for (let offset = 0; offset < prefiltered.length; offset += concurrency) {
     const batch = prefiltered.slice(offset, offset + concurrency);
     const batchItems = await Promise.all(batch.map(async (msg) => {
-      const item = await enrichMessage(tg, dialog, msg, chatId, { light: useLightEnrich });
+      const item = await enrichMessageSafe(tg, dialog, msg, chatId, {
+        light: useLightEnrich,
+        timeoutMs: useLightEnrich ? 2500 : 7000,
+        avatarTimeoutMs: 1000,
+        forwardTimeoutMs: 1200,
+        mediaTimeoutMs: 3000,
+      });
       const accepted = applyMessageFilters([item], options);
       return accepted.length ? item : null;
     }));
