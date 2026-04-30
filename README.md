@@ -106,6 +106,7 @@ Acesse API development tools
 Crie uma aplicação
 Copie:
 API_ID
+APP API_HASH
 📥 INSTALAÇÃO DO PROJETO
 git clone https://github.com/manualdeinvestigacaodigital/telegram-app.git
 cd telegram-app
