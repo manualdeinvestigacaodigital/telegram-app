@@ -428,6 +428,53 @@ async function ensureAvatarForSender(tg, sender) {
   return fs.existsSync(outputFile) ? publicUrl : null;
 }
 
+function memberAvatarIsUsable(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return false;
+    const stats = fs.statSync(filePath);
+    if (!stats.size || stats.size < 256) return false;
+    const size = readImageSize(filePath);
+    return Boolean(size && size.width >= 24 && size.height >= 24);
+  } catch {
+    return false;
+  }
+}
+
+async function ensureAvatarForMember(tg, member) {
+  if (!member) return null;
+  const memberId =
+    member.id?.toString?.() ??
+    member.userId?.toString?.() ??
+    member.channelId?.toString?.() ??
+    member.chatId?.toString?.() ??
+    null;
+  if (!memberId || !member.photo) return null;
+
+  const outputFile = path.join(AVATAR_DIR, `member_${memberId}.jpg`);
+  const publicUrl = `/cache/avatars/member_${memberId}.jpg`;
+  if (memberAvatarIsUsable(outputFile)) return publicUrl;
+
+  const attempts = [
+    { isBig: true, outputFile },
+    { isBig: false, outputFile },
+  ];
+  for (const opts of attempts) {
+    try {
+      await tg.downloadProfilePhoto(member, opts);
+      if (memberAvatarIsUsable(outputFile)) return publicUrl;
+    } catch {}
+  }
+
+  return memberAvatarIsUsable(outputFile) ? publicUrl : null;
+}
+
+function profileLinkForMember(member, id = "") {
+  const username = String(member?.username || "").replace(/^@/, "").trim();
+  if (username) return `https://t.me/${username}`;
+  const cleanId = String(id || "").trim();
+  return cleanId ? `tg://user?id=${encodeURIComponent(cleanId)}` : "";
+}
+
 
 function inspectDocument(msg) {
   const mime = msg.file?.mimeType || msg.document?.mimeType || "";
@@ -1749,16 +1796,18 @@ export async function listMembers(chatId, limit = 500, onEvent = null) {
 
   const items = [];
   for (const participant of participants) {
-    const avatarUrl = await ensureAvatarForSender(tg, participant);
+    const participantId =
+      participant?.id?.toString?.() ??
+      participant?.userId?.toString?.() ??
+      participant?.channelId?.toString?.() ??
+      participant?.chatId?.toString?.() ??
+      "";
+    const avatarUrl = await ensureAvatarForMember(tg, participant);
+    const profileLink = profileLinkForMember(participant, participantId);
     const item = {
       sourceChatId: String(chatId),
       sourceChatTitle,
-      id:
-        participant?.id?.toString?.() ??
-        participant?.userId?.toString?.() ??
-        participant?.channelId?.toString?.() ??
-        participant?.chatId?.toString?.() ??
-        "",
+      id: participantId,
       name:
         participant?.title ||
         [participant?.firstName, participant?.lastName].filter(Boolean).join(" ").trim() ||
@@ -1767,6 +1816,7 @@ export async function listMembers(chatId, limit = 500, onEvent = null) {
       username: participant?.username || "",
       phone: participant?.phone || "",
       avatarUrl,
+      profileLink,
       isBot: Boolean(participant?.bot),
       status: participant?.status?.className || "",
     };
